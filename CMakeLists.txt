@@ -28,3 +28,8 @@ include_directories(${INC_DIR}
 # Link executable to libraries
 target_link_libraries(gpu_cloud
 					  ${freenect2_LIBRARIES})
+					  
+					  
+### DOCS
+
+ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/doc)
