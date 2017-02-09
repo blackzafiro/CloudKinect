@@ -9,11 +9,16 @@
 #include <libfreenect2/registration.h>
 #include <libfreenect2/packet_pipeline.h>
 
+#include "TermColorPrint/TermColorPrint.h"
+
 /**
  * Shows how to get the color and cloud points from the kinect.
  */
 int main(int argc, char *argv[])
 {
+	PrettyPrint::ColorPrinter cout(std::cout, PrettyPrint::Cyan);
+	PrettyPrint::ColorPrinter cerr(std::cout, PrettyPrint::Red);
+    
 //- [context]
     libfreenect2::Freenect2 freenect2;
     libfreenect2::Freenect2Device *dev = 0;
@@ -24,23 +29,23 @@ int main(int argc, char *argv[])
     int gpuDeviceId = 0; // TODO: gpus válidos?
     
 #ifdef LIBFREENECT2_WITH_CUDA_SUPPORT
-    std::cout << "\x1b[0;36m" << "Creating CUDA pipeline..." << "\x1b[0m" << std::endl;
+    cout << "Creating CUDA pipeline..." << std::endl;
     if(!pipeline)
         pipeline = new libfreenect2::CudaPacketPipeline(gpuDeviceId);
-    std::cout << "Pipeline " << pipeline << std::endl;
+    cout << "Pipeline " << pipeline << std::endl;
 #else
-    std::cerr << "CUDA pipeline is not supported!" << std::endl;
+    cerr << "CUDA pipeline is not supported!" << std::endl;
 #endif
     
 //- [discovery]
-    std::cout << "Searching for device..." << std::endl;
+    cout << "Searching for device..." << std::endl;
     if(freenect2.enumerateDevices() == 0)
     {
-        std::cerr << "no device connected!" << std::endl;
+        cerr << "no device connected!" << std::endl;
         return -1;
     }
 
-    std::cout << "Getting device number..." << std::endl;
+    cout << "Getting device number..." << std::endl;
     if (serial == "")
     {
         serial = freenect2.getDefaultDeviceSerialNumber();
@@ -50,29 +55,29 @@ int main(int argc, char *argv[])
     if(pipeline)
     {
 //- [open]
-        std::cout << "Opening with pipeline..." << std::endl;
+        cout << "Opening with pipeline..." << std::endl;
         dev = freenect2.openDevice(serial, pipeline);
 //- [open]
     }
     else
     {
-        std::cout << "Opening with serial..." << std::endl;
+        cout << "Opening with serial..." << std::endl;
         dev = freenect2.openDevice(serial);
     }
 
     if(dev == 0)
     {
-        std::cerr << "failure opening device!" << std::endl;
+        cerr << "failure opening device!" << std::endl;
         return -1;
     }
     
 //- [start]
     if (!dev->start())
     {
-        std::cerr << "Could not start device!" << std::endl;
+        cerr << "Could not start device!" << std::endl;
     }
-    std::cout << "device serial: " << dev->getSerialNumber() << std::endl;
-    std::cout << "device firmware: " << dev->getFirmwareVersion() << std::endl;
+    cout << "device serial: " << dev->getSerialNumber() << std::endl;
+    cout << "device firmware: " << dev->getFirmwareVersion() << std::endl;
 //- [start]
     
 //- [registration setup]
@@ -107,6 +112,10 @@ int main(int argc, char *argv[])
     libfreenect2::Frame *ir = frames[libfreenect2::Frame::Ir];
     libfreenect2::Frame *depth = frames[libfreenect2::Frame::Depth];
     
+    cout << "Rgb \t(" << rgb->width << "x" << rgb->height << ")" << std::endl;
+    cout << "Ir \t(" << ir->width << "x" << ir->height << ")" << std::endl;
+    cout << "Depth \t(" << depth->width << "x" << depth->height << ")" << std::endl;
+    
 //- [registration]
     registration->apply(rgb, depth, &undistorted, &registered);
 //- [registration]
@@ -117,7 +126,7 @@ int main(int argc, char *argv[])
     
 //- [capture one frame]
         
-    std::cout << "Stopping and closing..." << std::endl;
+    cout << "Stopping and closing..." << std::endl;
     dev->stop();
     dev->close();
     

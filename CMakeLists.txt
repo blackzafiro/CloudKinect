@@ -18,15 +18,20 @@ find_package(freenect2 REQUIRED)
 
 file(GLOB srcs ./src/*.cpp ${INC_DIR}/*.h)
 
+# Print in color
+add_library(TermColorPrint STATIC ./src/TermColorPrint/TermColorPrint.cpp)
+
 # Executable called "gpu_cloud" built from sourcefiles
 add_executable(gpu_cloud ${srcs})
 
 # Indicate where include files are
 include_directories(${INC_DIR}
+					${INC_DIR}/TermColorPrint
                     ${freenect2_INCLUDE_DIR})
 
 # Link executable to libraries
 target_link_libraries(gpu_cloud
+					  TermColorPrint
 					  ${freenect2_LIBRARIES})
 					  
 					  

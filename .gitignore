@@ -1,2 +1,6 @@
 compile
+.autotools
+.cproject
+.project
+.settings/
 
