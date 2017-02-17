@@ -44,6 +44,7 @@
 #include <libfreenect2/frame_listener_impl.h>
 #include <libfreenect2/registration.h>
 #include <libfreenect2/packet_pipeline.h>
+#include <pcl/cuda/point_cloud.h>
 
 #include "TermColorPrint/TermColorPrint.h"
 
