@@ -44,9 +44,63 @@
 #include <libfreenect2/frame_listener_impl.h>
 #include <libfreenect2/registration.h>
 #include <libfreenect2/packet_pipeline.h>
+
 #include <pcl/cuda/point_cloud.h>
+#include <pcl/cuda/point_types.h>
 
 #include "TermColorPrint/TermColorPrint.h"
+//#include <string>
+
+/** Returns the corresponding string for the format enumeration. */
+std::string format_name(libfreenect2::Frame::Format f)
+{
+	switch (f) {
+	case libfreenect2::Frame::Invalid:
+		return "Invalid";
+	case libfreenect2::Frame::Raw:
+		return "Raw";
+	case libfreenect2::Frame::Float:
+		return "Float";
+	case libfreenect2::Frame::BGRX:
+		return "BGRX";
+	case libfreenect2::Frame::RGBX:
+		return "RGBX";
+	case libfreenect2::Frame::Gray:
+		return "Gray";
+	}
+	return "This shouldn't happen";
+}
+
+/** Prints info about the frame and data. */
+void print_frame(libfreenect2::Frame& frame, bool print_data)
+{
+	std::cout << "[" << frame.width << ", " << frame.height << "]" << " format: " << format_name(frame.format) << std::endl;
+    if (print_data)
+    {
+		for(int i=0; i<frame.height; i++)
+		{
+			for(int j=0; j<frame.width; j++)
+			{
+				std::cout << i << ","  << j << " -> (" << int(frame.data[i * frame.bytes_per_pixel + j]) << ")\t";
+			}
+			std::cout << std::endl;
+		}
+    }
+}
+
+/*
+template <template <typename> class Storage>
+class DocSuggestedClass
+{
+  // this takes a const reference to a shared_ptr to a const PointCloud, templated on Storage ..
+  void do_point_cloud_stuff (const boost::shared_ptr <const pcl::cuda::PointCloudAOS <Storage> > &input);
+
+  // this returns a device vector of float4
+  typename pcl::cuda::Device<float4>::type compute_normals ();
+
+  // this returns vector of float4 which either lives on the device or the host, depending on the template param.
+  typename pcl_cuda::Storage<float4>::type compute_normals ();
+};*/
 
 /**
  * Shows how to get the color and cloud points from the kinect.
@@ -55,6 +109,9 @@ int main(int argc, char *argv[])
 {
 	PrettyPrint::ColorPrinter cout(std::cout, PrettyPrint::Cyan);
 	PrettyPrint::ColorPrinter cerr(std::cout, PrettyPrint::Red);
+//- [PointCloud]
+	//pcl::cuda::PointCloudAOS<pcl::cuda::Device> cloud;
+//- [PointCloud]
     
 //- [context]
     libfreenect2::Freenect2 freenect2;
@@ -149,15 +206,41 @@ int main(int argc, char *argv[])
     libfreenect2::Frame *ir = frames[libfreenect2::Frame::Ir];
     libfreenect2::Frame *depth = frames[libfreenect2::Frame::Depth];
     
-    cout << "Rgb \t(" << rgb->width << "x" << rgb->height << ")" << std::endl;
-    cout << "Ir \t(" << ir->width << "x" << ir->height << ")" << std::endl;
-    cout << "Depth \t(" << depth->width << "x" << depth->height << ")" << std::endl;
+    cout << "Rgb " << std::endl;
+    print_frame(*rgb, false);
+    cout << "Ir " << std::endl;
+    print_frame(*ir, false);
+    cout << "Depth " << std::endl;
+    print_frame(*depth, true);
     
 //- [registration]
     registration->apply(rgb, depth, &undistorted, &registered);
 //- [registration]
 
-    std::cout << "Captured one frame..." << std::endl;
+    cout << "Captured one frame..." << std::endl;
+
+    //cloud.width = undistorted.width;
+    //cloud.height = undistorted.height;
+
+    //cout << "Building cloud..." << cloud.height << std::endl;
+    cout << "Undistorted: " << undistorted.status << " format: " << format_name(undistorted.format) << std::endl;
+    cout << "Registered: " << registered.status << " format: " << format_name(registered.format) << std::endl;
+//    std::copy(frame->data, frame->data + frame->width * frame->height * frame->bytes_per_pixel, rgb.data);
+
+    /*
+    float x, y, z, _rgb;
+	for(int i=0; i<undistorted.height; i++) {
+		for(int j=0; j<undistorted.width; j++) {
+			//std::cout << int(undistorted.data[i * undistorted.bytes_per_pixel + j]) << " ";
+
+			registration->getPointXYZRGB(&undistorted, &registered, i, j, x, y, z, _rgb);
+			std::cout << i << ","  << j << " -> (" << x << "," << y << "," << z << ") -> " << _rgb << "\t";
+			pcl::cuda::PointXYZRGB point(x,y,z,_rgb);
+			std::cout << point.rgb.rgb << std::endl;
+		}
+		std::cout << std::endl;
+	}
+	*/
 
     listener.release(frames);
     
@@ -167,5 +250,7 @@ int main(int argc, char *argv[])
     dev->stop();
     dev->close();
     
+    delete registration;
+
     return 0;
 }

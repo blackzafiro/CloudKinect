@@ -47,18 +47,21 @@ set(INC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 ### Dependencies
 
-set(freenect2_DIR "/home/blackzafiro/Descargas/Desarrollo/libfreenect2/build/freenect2/lib/cmake/freenect2/")
-set(PCL_DIR "/home/blackzafiro/Descargas/Desarrollo/pcl-trunk/build/share/pcl-1.8/PCLConfig.cmake")
-set(PCL_HOME "/home/blackzafiro/Descargas/Desarrollo/pcl-trunk/build")
-set(PCL_CUDA_INCLUDE_DIRS ${PCL_HOME}/include/pcl-1.8)
+set(freenect2_DIR "/home/blackzafiro/Programas/libfreenect2/build/lib/cmake/freenect2")
+set(PCL_DIR "/home/blackzafiro/Descargas/Desarrollo/pcl-trunk/build/share/pcl-1.8")
+#set(PCL_HOME "/home/blackzafiro/Descargas/Desarrollo/pcl-trunk/build")
+#list(APPEND CMAKE_MODULE_PATH "${PCL_HOME}/share/pcl-1.8")
+list(APPEND CMAKE_MODULE_PATH "${PCL_DIR}")
+#set(PCL_CUDA_INCLUDE_DIRS ${PCL_HOME}/include/pcl-1.8)
+colormessage(STATUS ${CMAKE_MODULE_PATH})
 
 find_package(CUDA REQUIRED)
 find_package(freenect2 REQUIRED)
-find_package(PCL REQUIRED COMPONENTS common cuda_common cuda_io)
+find_package(PCL 1.8 REQUIRED COMPONENTS common cuda_common cuda_io)
 
-message(STATUS ${PCL_INCLUDE_DIRS})
-MESSAGE(STATUS ${PCL_LIBRARIES})
-message(STATUS ${PCL_CUDA_INCLUDE_DIRS})
+#message(STATUS ${PCL_INCLUDE_DIRS})
+#MESSAGE(STATUS ${PCL_LIBRARIES})
+#message(STATUS ${PCL_CUDA_INCLUDE_DIRS})
 
 ### APP
 
