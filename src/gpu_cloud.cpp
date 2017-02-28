@@ -45,8 +45,12 @@
 #include <libfreenect2/registration.h>
 #include <libfreenect2/packet_pipeline.h>
 
-#include <pcl/cuda/point_cloud.h>
-#include <pcl/cuda/point_types.h>
+//#include <pcl/cuda/point_cloud.h>
+//#include <pcl/cuda/point_types.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/point_types.h>
+//#include <pcl/visualization/pcl_visualizer.h>
+#include <pcl/visualization/cloud_viewer.h>
 
 #include "TermColorPrint/TermColorPrint.h"
 //#include <string>
@@ -102,6 +106,7 @@ class DocSuggestedClass
   typename pcl_cuda::Storage<float4>::type compute_normals ();
 };*/
 
+
 /**
  * Shows how to get the color and cloud points from the kinect.
  */
@@ -110,7 +115,10 @@ int main(int argc, char *argv[])
 	PrettyPrint::ColorPrinter cout(std::cout, PrettyPrint::Cyan);
 	PrettyPrint::ColorPrinter cerr(std::cout, PrettyPrint::Red);
 //- [PointCloud]
-	//pcl::cuda::PointCloudAOS<pcl::cuda::Device> cloud;
+	//pcl::PointCloud<pcl::PointXYZ> cpu_cloud;
+	//pcl::PointCloud<pcl::PointXYZ>::Ptr cpu_cloud_ptr(cpu_cloud);
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cpu_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+	//pcl::cuda::PointCloudAOS<pcl::cuda::Device> cloud();
 //- [PointCloud]
     
 //- [context]
@@ -211,8 +219,31 @@ int main(int argc, char *argv[])
     cout << "Ir " << std::endl;
     print_frame(*ir, false);
     cout << "Depth " << std::endl;
-    print_frame(*depth, true);
+    print_frame(*depth, false);
     
+    //cloud.width = depth->width;
+    //cloud.height = depth->height;
+    cpu_cloud->width = depth->width;
+    cpu_cloud->height = depth->height;
+    cpu_cloud->is_dense = false;
+    cpu_cloud->points.resize(cpu_cloud->width * cpu_cloud->height);
+
+    for(int i=0; i < depth->height; i++)
+    {
+    	for(int j=0; j < depth->width; j++)
+    	{
+    		cpu_cloud->points[i * depth->width + j].x = j;
+    		cpu_cloud->points[i * depth->width + j].y = i;
+    		cpu_cloud->points[i * depth->width + j].z = (int)(depth->data[i * depth->width + j]);
+    		cpu_cloud->points[i * depth->width + j].rgb = 255;
+    	}
+    }
+    pcl::visualization::CloudViewer viewer("Kinect V2");
+    viewer.showCloud(cpu_cloud);
+
+    while(!viewer.wasStopped()) {}
+
+
 //- [registration]
     registration->apply(rgb, depth, &undistorted, &registered);
 //- [registration]
@@ -228,19 +259,41 @@ int main(int argc, char *argv[])
 //    std::copy(frame->data, frame->data + frame->width * frame->height * frame->bytes_per_pixel, rgb.data);
 
     /*
+    //pcl::PointXYZRGB point();
     float x, y, z, _rgb;
 	for(int i=0; i<undistorted.height; i++) {
 		for(int j=0; j<undistorted.width; j++) {
 			//std::cout << int(undistorted.data[i * undistorted.bytes_per_pixel + j]) << " ";
 
 			registration->getPointXYZRGB(&undistorted, &registered, i, j, x, y, z, _rgb);
+			//pcl::PointXYZRGB point((int)x, (int)y, (int)z, static_cast<int>_rgb);
+			/*
+			point.x = (int)x;
+			point.y = (int)y;
+			point.z = (int)z;*/
+	/*		cpu_cloud->points[i * depth->width + j].x = (int)x;
+			cpu_cloud->points[i * depth->width + j].y = (int)y;
+			cpu_cloud->points[i * depth->width + j].z = (int)z;
+			uint8_t r = 255, g = 0, b = 0;
+			uint32_t rgb = ((uint32_t)r << 16 | (uint32_t)g << 8 | (uint32_t)b);
+			cpu_cloud->points[i * depth->width + j].rgb = *reinterpret_cast<float*>(&rgb);
+
+			/*
 			std::cout << i << ","  << j << " -> (" << x << "," << y << "," << z << ") -> " << _rgb << "\t";
 			pcl::cuda::PointXYZRGB point(x,y,z,_rgb);
 			std::cout << point.rgb.rgb << std::endl;
-		}
-		std::cout << std::endl;
+			*/
+	/*	}
+		//std::cout << std::endl;
 	}
-	*/
+	pcl::visualization::CloudViewer viewer("Kinect V2");
+	viewer.showCloud(cpu_cloud);
+
+	while(!viewer.wasStopped())
+	{
+		viewer.showCloud(cpu_cloud);
+		boost::this_thread::sleep(boost::posix_time::seconds(1));
+	}*/
 
     listener.release(frames);
     

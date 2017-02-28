@@ -55,9 +55,12 @@ list(APPEND CMAKE_MODULE_PATH "${PCL_DIR}")
 #set(PCL_CUDA_INCLUDE_DIRS ${PCL_HOME}/include/pcl-1.8)
 colormessage(STATUS ${CMAKE_MODULE_PATH})
 
+find_package( PkgConfig )
+pkg_check_modules( EIGEN3 REQUIRED eigen3 )
+
 find_package(CUDA REQUIRED)
 find_package(freenect2 REQUIRED)
-find_package(PCL 1.8 REQUIRED COMPONENTS common cuda_common cuda_io)
+find_package(PCL 1.8 REQUIRED COMPONENTS common io visualization cuda_common cuda_io)
 
 #message(STATUS ${PCL_INCLUDE_DIRS})
 #MESSAGE(STATUS ${PCL_LIBRARIES})
@@ -79,7 +82,8 @@ include_directories(${INC_DIR}
                     ${freenect2_INCLUDE_DIR}
                     ${PCL_INCLUDE_DIRS}
                     ${PCL_CUDA_INCLUDE_DIRS}
-                    ${CUDA_INCLUDE_DIRS})
+                    ${CUDA_INCLUDE_DIRS}
+                    ${EIGEN3_INCLUDE_DIRS})
 
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
@@ -88,7 +92,7 @@ add_definitions(${PCL_DEFINITIONS})
 target_link_libraries(gpu_cloud
                       TermColorPrint
                       ${freenect2_LIBRARIES}
-                      ${PCL_COMMON_LIBRARIES} ${PCL_IO_LIBRARIES} ${PCL_CUDA_LIBRARIES} ${PCL_CUDA_IO_LIBRARIES}
+                      ${PCL_COMMON_LIBRARIES} ${PCL_IO_LIBRARIES} ${PCL_VISUALIZATION_LIBRARIES} ${PCL_CUDA_LIBRARIES} ${PCL_CUDA_IO_LIBRARIES}
                       )
 					  
 					  
