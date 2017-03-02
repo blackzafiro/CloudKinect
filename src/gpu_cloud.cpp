@@ -92,19 +92,59 @@ void print_frame(libfreenect2::Frame& frame, bool print_data)
     }
 }
 
-/*
-template <template <typename> class Storage>
-class DocSuggestedClass
+void show_depth_cloud(libfreenect2::Frame *frame)
 {
-  // this takes a const reference to a shared_ptr to a const PointCloud, templated on Storage ..
-  void do_point_cloud_stuff (const boost::shared_ptr <const pcl::cuda::PointCloudAOS <Storage> > &input);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cpu_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
-  // this returns a device vector of float4
-  typename pcl::cuda::Device<float4>::type compute_normals ();
+	cpu_cloud->width = frame->width;
+	cpu_cloud->height = frame->height;
+	cpu_cloud->is_dense = true;
+	cpu_cloud->points.resize(cpu_cloud->width * cpu_cloud->height);
+	int step = frame->width;
+	int index;
+	for(int i=0; i < frame->height; i++)
+	{
+		for(int j=0; j < frame->width; j++)
+		{
+			index = i * step + j;
+			cpu_cloud->points[index].x = j;
+			cpu_cloud->points[index].y = i;
+			cpu_cloud->points[index].z = (int)(frame->data[i * frame->width + j]);
+		}
+	}
+	pcl::visualization::CloudViewer viewer("Kinect V2: Depth");
+	viewer.showCloud(cpu_cloud);
+	while(!viewer.wasStopped()) {}
+}
 
-  // this returns vector of float4 which either lives on the device or the host, depending on the template param.
-  typename pcl_cuda::Storage<float4>::type compute_normals ();
-};*/
+void show_registered_cloud(libfreenect2::Frame *frame)
+{
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cpu_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+
+	cpu_cloud->width = frame->width;
+	cpu_cloud->height = frame->height;
+	cpu_cloud->is_dense = true;
+	cpu_cloud->points.resize(cpu_cloud->width * cpu_cloud->height);
+	int step = frame->width;
+	int index;
+	uint8_t r = 20, g = 10, b = 255;
+	uint32_t rgb = ((uint32_t)r << 16 | (uint32_t)g << 8 | (uint32_t)b);
+	float color = *reinterpret_cast<float*>(&rgb);
+	for(int i=0; i < frame->height; i++)
+	{
+		for(int j=0; j < frame->width; j++)
+		{
+			index = i * step + j;
+			cpu_cloud->points[index].x = j;
+			cpu_cloud->points[index].y = i;
+			cpu_cloud->points[index].z = (int)(frame->data[i * frame->width + j]);
+			cpu_cloud->points[index].rgb = color;
+		}
+	}
+	pcl::visualization::CloudViewer viewer("Kinect V2");
+	viewer.showCloud(cpu_cloud);
+	while(!viewer.wasStopped()) {}
+}
 
 
 /**
@@ -114,12 +154,6 @@ int main(int argc, char *argv[])
 {
 	PrettyPrint::ColorPrinter cout(std::cout, PrettyPrint::Cyan);
 	PrettyPrint::ColorPrinter cerr(std::cout, PrettyPrint::Red);
-//- [PointCloud]
-	//pcl::PointCloud<pcl::PointXYZ> cpu_cloud;
-	//pcl::PointCloud<pcl::PointXYZ>::Ptr cpu_cloud_ptr(cpu_cloud);
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cpu_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-	//pcl::cuda::PointCloudAOS<pcl::cuda::Device> cloud();
-//- [PointCloud]
     
 //- [context]
     libfreenect2::Freenect2 freenect2;
@@ -221,27 +255,7 @@ int main(int argc, char *argv[])
     cout << "Depth " << std::endl;
     print_frame(*depth, false);
     
-    //cloud.width = depth->width;
-    //cloud.height = depth->height;
-    cpu_cloud->width = depth->width;
-    cpu_cloud->height = depth->height;
-    cpu_cloud->is_dense = false;
-    cpu_cloud->points.resize(cpu_cloud->width * cpu_cloud->height);
-
-    for(int i=0; i < depth->height; i++)
-    {
-    	for(int j=0; j < depth->width; j++)
-    	{
-    		cpu_cloud->points[i * depth->width + j].x = j;
-    		cpu_cloud->points[i * depth->width + j].y = i;
-    		cpu_cloud->points[i * depth->width + j].z = (int)(depth->data[i * depth->width + j]);
-    		cpu_cloud->points[i * depth->width + j].rgb = 255;
-    	}
-    }
-    pcl::visualization::CloudViewer viewer("Kinect V2");
-    viewer.showCloud(cpu_cloud);
-
-    while(!viewer.wasStopped()) {}
+    show_depth_cloud(depth);
 
 
 //- [registration]
@@ -249,51 +263,10 @@ int main(int argc, char *argv[])
 //- [registration]
 
     cout << "Captured one frame..." << std::endl;
-
-    //cloud.width = undistorted.width;
-    //cloud.height = undistorted.height;
-
-    //cout << "Building cloud..." << cloud.height << std::endl;
     cout << "Undistorted: " << undistorted.status << " format: " << format_name(undistorted.format) << std::endl;
     cout << "Registered: " << registered.status << " format: " << format_name(registered.format) << std::endl;
-//    std::copy(frame->data, frame->data + frame->width * frame->height * frame->bytes_per_pixel, rgb.data);
 
-    /*
-    //pcl::PointXYZRGB point();
-    float x, y, z, _rgb;
-	for(int i=0; i<undistorted.height; i++) {
-		for(int j=0; j<undistorted.width; j++) {
-			//std::cout << int(undistorted.data[i * undistorted.bytes_per_pixel + j]) << " ";
-
-			registration->getPointXYZRGB(&undistorted, &registered, i, j, x, y, z, _rgb);
-			//pcl::PointXYZRGB point((int)x, (int)y, (int)z, static_cast<int>_rgb);
-			/*
-			point.x = (int)x;
-			point.y = (int)y;
-			point.z = (int)z;*/
-	/*		cpu_cloud->points[i * depth->width + j].x = (int)x;
-			cpu_cloud->points[i * depth->width + j].y = (int)y;
-			cpu_cloud->points[i * depth->width + j].z = (int)z;
-			uint8_t r = 255, g = 0, b = 0;
-			uint32_t rgb = ((uint32_t)r << 16 | (uint32_t)g << 8 | (uint32_t)b);
-			cpu_cloud->points[i * depth->width + j].rgb = *reinterpret_cast<float*>(&rgb);
-
-			/*
-			std::cout << i << ","  << j << " -> (" << x << "," << y << "," << z << ") -> " << _rgb << "\t";
-			pcl::cuda::PointXYZRGB point(x,y,z,_rgb);
-			std::cout << point.rgb.rgb << std::endl;
-			*/
-	/*	}
-		//std::cout << std::endl;
-	}
-	pcl::visualization::CloudViewer viewer("Kinect V2");
-	viewer.showCloud(cpu_cloud);
-
-	while(!viewer.wasStopped())
-	{
-		viewer.showCloud(cpu_cloud);
-		boost::this_thread::sleep(boost::posix_time::seconds(1));
-	}*/
+    show_registered_cloud(&registered);
 
     listener.release(frames);
     
