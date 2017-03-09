@@ -10,6 +10,7 @@ set(INC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 set(freenect2_DIR "/home/blackzafiro/Programas/libfreenect2/build/lib/cmake/freenect2")
 set(PCL_DIR "/home/blackzafiro/Descargas/Desarrollo/pcl-trunk/build/share/pcl-1.8")
+set(OpenCV_DIR "/home/blackzafiro/Descargas/Desarrollo/OpenCV/opencv-3.2.0/build/share/OpenCV")
 list(APPEND CMAKE_MODULE_PATH "${PCL_DIR}")
 
 find_package( PkgConfig )
@@ -18,6 +19,7 @@ pkg_check_modules( EIGEN3 REQUIRED eigen3 )
 find_package(CUDA REQUIRED)
 find_package(freenect2 REQUIRED)
 find_package(PCL 1.8 REQUIRED COMPONENTS common io visualization cuda_common cuda_io)
+find_package(OpenCV REQUIRED core highgui)
 
 ### APP
 
@@ -46,6 +48,7 @@ target_link_libraries(gpu_cloud
                       TermColorPrint
                       ${freenect2_LIBRARIES}
                       ${PCL_COMMON_LIBRARIES} ${PCL_IO_LIBRARIES} ${PCL_VISUALIZATION_LIBRARIES} ${PCL_CUDA_LIBRARIES} ${PCL_CUDA_IO_LIBRARIES}
+                      ${OpenCV_LIBS}
                       )
 					  
 					  

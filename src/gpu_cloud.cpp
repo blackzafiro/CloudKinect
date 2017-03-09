@@ -42,18 +42,28 @@
 #include <iostream>
 #include <libfreenect2/libfreenect2.hpp>
 #include <libfreenect2/frame_listener_impl.h>
-#include <libfreenect2/registration.h>
+// //#include <libfreenect2/registration.h>
+#include <libfreenect2/cuda_registration.h>
 #include <libfreenect2/packet_pipeline.h>
 
-//#include <pcl/cuda/point_cloud.h>
-//#include <pcl/cuda/point_types.h>
+// //#include <pcl/cuda/point_cloud.h>
+// //#include <pcl/cuda/point_types.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
-//#include <pcl/visualization/pcl_visualizer.h>
+// //#include <pcl/visualization/pcl_visualizer.h>
+//#include <pcl/visualization/image_viewer.h>
 #include <pcl/visualization/cloud_viewer.h>
+
+// To see images
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
 
 #include "TermColorPrint/TermColorPrint.h"
 //#include <string>
+
+// Size of infrared and depth data
+#define IRD_WIDTH 512
+#define IRD_HEIGHT 424
 
 /** Returns the corresponding string for the format enumeration. */
 std::string format_name(libfreenect2::Frame::Format f)
@@ -78,7 +88,7 @@ std::string format_name(libfreenect2::Frame::Format f)
 /** Prints info about the frame and data. */
 void print_frame(libfreenect2::Frame& frame, bool print_data)
 {
-	std::cout << "[" << frame.width << ", " << frame.height << "]" << " format: " << format_name(frame.format) << std::endl;
+	std::cout << "[" << frame.width << ", " << frame.height << ", " << frame.bytes_per_pixel << "]" << " format: " << format_name(frame.format) << std::endl;
     if (print_data)
     {
 		for(int i=0; i<frame.height; i++)
@@ -90,6 +100,33 @@ void print_frame(libfreenect2::Frame& frame, bool print_data)
 			std::cout << std::endl;
 		}
     }
+}
+
+void show_color_image(libfreenect2::Frame& frame)
+{
+	unsigned char* frame_BGRX_data = frame.data;
+	size_t width = frame.width;
+	size_t height = frame.height;
+
+	cv::Mat rgb(height, width, CV_8UC3);
+	unsigned char* rgb_buffer = rgb.ptr<unsigned char>(0);
+	int index, k_index;
+	for(int i = 0; i < height; i++)
+	{
+		for(int j = 0; j < width; j++)
+		{
+			index = (i * width + j) * 3;
+			k_index = (i * width + j);
+
+			rgb_buffer[index + 0] = frame_BGRX_data[k_index + 3]; // B
+			rgb_buffer[index + 1] = frame_BGRX_data[k_index + 2]; // G
+			rgb_buffer[index + 2] = frame_BGRX_data[k_index + 1]; // R
+
+			//rgb_buffer[index + 0] = frame_BGRX_data[k_index];
+		}
+	}
+
+	cv::imshow("Color", rgb);
 }
 
 void show_depth_cloud(libfreenect2::Frame *frame)
@@ -154,6 +191,7 @@ int main(int argc, char *argv[])
 {
 	PrettyPrint::ColorPrinter cout(std::cout, PrettyPrint::Cyan);
 	PrettyPrint::ColorPrinter cerr(std::cout, PrettyPrint::Red);
+	cv::namedWindow("Color", cv::WINDOW_AUTOSIZE);
     
 //- [context]
     libfreenect2::Freenect2 freenect2;
@@ -220,7 +258,8 @@ int main(int argc, char *argv[])
     // Optional
     // Combines frames of depth and color camera with default reversed ingeniered parameters.
     // Can be replaced.
-    libfreenect2::Registration* registration = new libfreenect2::Registration(dev->getIrCameraParams(), dev->getColorCameraParams());
+    //libfreenect2::Registration* registration = new libfreenect2::Registration(dev->getIrCameraParams(), dev->getColorCameraParams());
+    libfreenect2::CudaRegistration* registration = new libfreenect2::CudaRegistration(dev->getIrCameraParams(), dev->getColorCameraParams());
     libfreenect2::Frame undistorted(512, 424, 4), registered(512, 424, 4);
 //- [registration setup]
 
@@ -238,39 +277,45 @@ int main(int argc, char *argv[])
     dev->setIrAndDepthFrameListener(&listener);
 //- [listeners]
 
-//- [capture one frame]
-    if (!listener.waitForNewFrame(frames, 10*1000)) // 10 sconds
+    int frame_count = 0;
+    while(frame_count++ < 500)
     {
-        std::cout << "timeout!" << std::endl;
-        return -1;
-    }
-    libfreenect2::Frame *rgb = frames[libfreenect2::Frame::Color];
-    libfreenect2::Frame *ir = frames[libfreenect2::Frame::Ir];
-    libfreenect2::Frame *depth = frames[libfreenect2::Frame::Depth];
-    
-    cout << "Rgb " << std::endl;
-    print_frame(*rgb, false);
-    cout << "Ir " << std::endl;
-    print_frame(*ir, false);
-    cout << "Depth " << std::endl;
-    print_frame(*depth, false);
-    
-    show_depth_cloud(depth);
-
-
-//- [registration]
-    registration->apply(rgb, depth, &undistorted, &registered);
-//- [registration]
-
-    cout << "Captured one frame..." << std::endl;
-    cout << "Undistorted: " << undistorted.status << " format: " << format_name(undistorted.format) << std::endl;
-    cout << "Registered: " << registered.status << " format: " << format_name(registered.format) << std::endl;
-
-    show_registered_cloud(&registered);
-
-    listener.release(frames);
-    
 //- [capture one frame]
+		if (!listener.waitForNewFrame(frames, 10*1000)) // 10 sconds
+		{
+			std::cout << "timeout!" << std::endl;
+			return -1;
+		}
+		libfreenect2::Frame *rgb = frames[libfreenect2::Frame::Color];
+		libfreenect2::Frame *ir = frames[libfreenect2::Frame::Ir];
+		libfreenect2::Frame *depth = frames[libfreenect2::Frame::Depth];
+
+		cout << "Rgb " << std::endl;
+		print_frame(*rgb, false);
+		show_color_image(*rgb);
+
+		cout << "Ir " << std::endl;
+		print_frame(*ir, false);
+		cout << "Depth " << std::endl;
+		print_frame(*depth, false);
+
+		//show_depth_cloud(depth);
+
+
+	//- [registration]
+		registration->apply(rgb, depth, &undistorted, &registered);
+	//- [registration]
+
+		cout << "Captured one frame..." << std::endl;
+		cout << "Undistorted: " << undistorted.status << " format: " << format_name(undistorted.format) << std::endl;
+		cout << "Registered: " << registered.status << " format: " << format_name(registered.format) << std::endl;
+
+		//show_registered_cloud(&registered);
+
+		listener.release(frames);
+
+	//- [capture one frame]
+    }
         
     cout << "Stopping and closing..." << std::endl;
     dev->stop();
