@@ -39,11 +39,18 @@
  * with cuda.
  */
 
+#define USE_CUDA_REG
+
 #include <iostream>
 #include <libfreenect2/libfreenect2.hpp>
 #include <libfreenect2/frame_listener_impl.h>
-// //#include <libfreenect2/registration.h>
+
+#ifdef USE_CUDA_REG
 #include <libfreenect2/cuda_registration.h>
+#else
+#include <libfreenect2/registration.h>
+#endif
+
 #include <libfreenect2/packet_pipeline.h>
 
 // //#include <pcl/cuda/point_cloud.h>
@@ -56,6 +63,7 @@
 
 // To see images
 #include <opencv2/core/core.hpp>
+#include "opencv2/imgproc/imgproc.hpp"
 #include <opencv2/highgui/highgui.hpp>
 
 #include "TermColorPrint/TermColorPrint.h"
@@ -88,7 +96,9 @@ std::string format_name(libfreenect2::Frame::Format f)
 /** Prints info about the frame and data. */
 void print_frame(libfreenect2::Frame& frame, bool print_data)
 {
-	std::cout << "[" << frame.width << ", " << frame.height << ", " << frame.bytes_per_pixel << "]" << " format: " << format_name(frame.format) << std::endl;
+	std::cout << "[" << frame.width << ", " << frame.height << ", " << frame.bytes_per_pixel << "]"
+			  << "\t pixel format: " << format_name(frame.format)
+			  << "\t status: " << frame.status << std::endl;
     if (print_data)
     {
 		for(int i=0; i<frame.height; i++)
@@ -102,31 +112,87 @@ void print_frame(libfreenect2::Frame& frame, bool print_data)
     }
 }
 
-void show_color_image(libfreenect2::Frame& frame)
+bool show_color_image(libfreenect2::Frame& frame, const std::string& window_name)
 {
 	unsigned char* frame_BGRX_data = frame.data;
 	size_t width = frame.width;
 	size_t height = frame.height;
 
-	cv::Mat rgb(height, width, CV_8UC3);
-	unsigned char* rgb_buffer = rgb.ptr<unsigned char>(0);
+	cv::Mat bgr(height, width, CV_8UC3);
+	unsigned char* bgr_buffer = bgr.ptr<unsigned char>(0);
 	int index, k_index;
 	for(int i = 0; i < height; i++)
 	{
 		for(int j = 0; j < width; j++)
 		{
 			index = (i * width + j) * 3;
-			k_index = (i * width + j);
+			k_index = (i * width + j) * 4;
 
-			rgb_buffer[index + 0] = frame_BGRX_data[k_index + 3]; // B
-			rgb_buffer[index + 1] = frame_BGRX_data[k_index + 2]; // G
-			rgb_buffer[index + 2] = frame_BGRX_data[k_index + 1]; // R
-
-			//rgb_buffer[index + 0] = frame_BGRX_data[k_index];
+			bgr_buffer[index + 0] = frame_BGRX_data[k_index + 0]; // R
+			bgr_buffer[index + 1] = frame_BGRX_data[k_index + 1]; // G
+			bgr_buffer[index + 2] = frame_BGRX_data[k_index + 2]; // B
 		}
 	}
 
-	cv::imshow("Color", rgb);
+	if (width > 1000)
+	{
+		double scale = 0.33;
+		cv::resize(bgr, bgr, cv::Size(), scale, scale);
+	}
+	cv::imshow(window_name, bgr);
+	if (cv::waitKey(2) == 'q') {return false;}
+	return true;
+}
+
+bool show_depth_image(libfreenect2::Frame& frame, const std::string& window_name)
+{
+	float *frame_float_data = (float *)frame.data;
+	size_t width = frame.width;
+	size_t height = frame.height;
+
+	cv::Mat gray(height, width, CV_32FC1);
+	float* gray_buffer = gray.ptr<float>(0);
+	int index, k_index;
+	for(int i = 0; i < height; i++)
+	{
+		for(int j = 0; j < width; j++)
+		{
+			index = (i * width + j);
+			gray_buffer[index] = frame_float_data[index]/ 1000.f;
+		}
+	}
+
+	double scale = 1.0;
+	cv::resize(gray, gray, cv::Size(), scale, scale);
+	//cv::normalize(gray, gray);
+	cv::imshow(window_name, gray);
+	if (cv::waitKey(2) == 'q') {return false;}
+	return true;
+}
+
+bool show_infrared_image(libfreenect2::Frame& frame, const std::string& window_name)
+{
+	float* frame_float_data = (float*)frame.data;
+	size_t width = frame.width;
+	size_t height = frame.height;
+
+	cv::Mat gray(height, width, CV_32FC1);
+	float* gray_buffer = gray.ptr<float>(0);
+	int index, k_index;
+	for(int i = 0; i < height; i++)
+	{
+		for(int j = 0; j < width; j++)
+		{
+			index = (i * width + j);
+			gray_buffer[index] = frame_float_data[index]/65535.0f;	// Max value is 65535.0
+		}
+	}
+
+	double scale = 1.0;
+	cv::resize(gray, gray, cv::Size(), scale, scale);
+	cv::imshow(window_name, gray);
+	if (cv::waitKey(2) == 'q') {return false;}
+	return true;
 }
 
 void show_depth_cloud(libfreenect2::Frame *frame)
@@ -192,7 +258,15 @@ int main(int argc, char *argv[])
 	PrettyPrint::ColorPrinter cout(std::cout, PrettyPrint::Cyan);
 	PrettyPrint::ColorPrinter cerr(std::cout, PrettyPrint::Red);
 	cv::namedWindow("Color", cv::WINDOW_AUTOSIZE);
-    
+	cv::namedWindow("Infrared", cv::WINDOW_AUTOSIZE);
+	cv::moveWindow("Infrared", 650, 0);
+	cv::namedWindow("Depth", cv::WINDOW_AUTOSIZE);
+	cv::moveWindow("Depth", 1200, 0);
+	cv::namedWindow("Undistorted", cv::WINDOW_AUTOSIZE);
+	cv::moveWindow("Undistorted", 0, 500);
+	cv::namedWindow("Registered", cv::WINDOW_AUTOSIZE);
+	cv::moveWindow("Registered", 650, 500);
+
 //- [context]
     libfreenect2::Freenect2 freenect2;
     libfreenect2::Freenect2Device *dev = 0;
@@ -209,6 +283,7 @@ int main(int argc, char *argv[])
     cout << "Pipeline " << pipeline << std::endl;
 #else
     cerr << "CUDA pipeline is not supported!" << std::endl;
+    return -1;
 #endif
     
 //- [discovery]
@@ -258,8 +333,12 @@ int main(int argc, char *argv[])
     // Optional
     // Combines frames of depth and color camera with default reversed ingeniered parameters.
     // Can be replaced.
-    //libfreenect2::Registration* registration = new libfreenect2::Registration(dev->getIrCameraParams(), dev->getColorCameraParams());
+#ifdef USE_CUDA_REG
     libfreenect2::CudaRegistration* registration = new libfreenect2::CudaRegistration(dev->getIrCameraParams(), dev->getColorCameraParams());
+#else
+    libfreenect2::Registration* registration = new libfreenect2::Registration(dev->getIrCameraParams(), dev->getColorCameraParams());
+#endif
+
     libfreenect2::Frame undistorted(512, 424, 4), registered(512, 424, 4);
 //- [registration setup]
 
@@ -277,8 +356,8 @@ int main(int argc, char *argv[])
     dev->setIrAndDepthFrameListener(&listener);
 //- [listeners]
 
-    int frame_count = 0;
-    while(frame_count++ < 500)
+    bool cycle_again = true;
+    while(cycle_again)
     {
 //- [capture one frame]
 		if (!listener.waitForNewFrame(frames, 10*1000)) // 10 sconds
@@ -292,23 +371,31 @@ int main(int argc, char *argv[])
 
 		cout << "Rgb " << std::endl;
 		print_frame(*rgb, false);
-		show_color_image(*rgb);
+		cycle_again = show_color_image(*rgb, "Color");
 
 		cout << "Ir " << std::endl;
 		print_frame(*ir, false);
+		if(cycle_again) cycle_again = show_infrared_image(*ir, "Infrared");
+
 		cout << "Depth " << std::endl;
 		print_frame(*depth, false);
+		if(cycle_again) cycle_again = show_depth_image(*depth, "Depth");
+
+		cout << "Captured one frame..." << std::endl;
 
 		//show_depth_cloud(depth);
-
 
 	//- [registration]
 		registration->apply(rgb, depth, &undistorted, &registered);
 	//- [registration]
 
-		cout << "Captured one frame..." << std::endl;
-		cout << "Undistorted: " << undistorted.status << " format: " << format_name(undistorted.format) << std::endl;
-		cout << "Registered: " << registered.status << " format: " << format_name(registered.format) << std::endl;
+		cout << "Undistorted: " << std::endl;
+		print_frame(undistorted, false);
+		show_depth_image(undistorted, "Undistorted");
+
+		cout << "Registered: " << std::endl;
+		print_frame(registered, false);
+		show_color_image(registered, "Registered");
 
 		//show_registered_cloud(&registered);
 

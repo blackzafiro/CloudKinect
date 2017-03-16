@@ -19,7 +19,7 @@ pkg_check_modules( EIGEN3 REQUIRED eigen3 )
 find_package(CUDA REQUIRED)
 find_package(freenect2 REQUIRED)
 find_package(PCL 1.8 REQUIRED COMPONENTS common io visualization cuda_common cuda_io)
-find_package(OpenCV REQUIRED core highgui)
+find_package(OpenCV REQUIRED core imgproc highgui)
 
 ### APP
 
