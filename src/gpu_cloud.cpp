@@ -63,7 +63,8 @@
 
 // To see images
 #include <opencv2/core/core.hpp>
-#include "opencv2/imgproc/imgproc.hpp"
+#include <opencv2/core/mat.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
 #include "TermColorPrint/TermColorPrint.h"
@@ -153,11 +154,14 @@ bool show_depth_image(libfreenect2::Frame& frame, const std::string& window_name
 	cv::Mat gray(height, width, CV_32FC1);
 	float* gray_buffer = gray.ptr<float>(0);
 	int index, k_index;
+
+	float max = -60000;
 	for(int i = 0; i < height; i++)
 	{
 		for(int j = 0; j < width; j++)
 		{
 			index = (i * width + j);
+			if (frame_float_data[index] > max) max = frame_float_data[index];
 			gray_buffer[index] = frame_float_data[index]/ 1000.f;
 		}
 	}
@@ -165,10 +169,21 @@ bool show_depth_image(libfreenect2::Frame& frame, const std::string& window_name
 	double scale = 1.0;
 	cv::resize(gray, gray, cv::Size(), scale, scale);
 	//cv::normalize(gray, gray);
-	cv::imshow(window_name, gray);
+	cv::Mat gray_(height, width, CV_8UC1);
+	gray.convertTo(gray_, CV_8UC1);
+	cv::equalizeHist(gray_, gray_);
+	cv::imshow(window_name, gray_);
+	std::cout << "Max depth:" << max << std::endl;
 	if (cv::waitKey(2) == 'q') {return false;}
 	return true;
 }
+
+#ifdef USE_CUDA_REG
+bool show_gpu_float_image()
+{
+	return true;
+}
+#endif
 
 bool show_infrared_image(libfreenect2::Frame& frame, const std::string& window_name)
 {
@@ -335,11 +350,11 @@ int main(int argc, char *argv[])
     // Can be replaced.
 #ifdef USE_CUDA_REG
     libfreenect2::CudaRegistration* registration = new libfreenect2::CudaRegistration(dev->getIrCameraParams(), dev->getColorCameraParams());
+    libfreenect2::Frame undistorted(512, 424, 4), registered(512, 424, 4);
 #else
     libfreenect2::Registration* registration = new libfreenect2::Registration(dev->getIrCameraParams(), dev->getColorCameraParams());
+    libfreenect2::CudaDeviceFrame undistorted(512, 424, 4), registered(512, 424, 4);
 #endif
-
-    libfreenect2::Frame undistorted(512, 424, 4), registered(512, 424, 4);
 //- [registration setup]
 
 //- [listeners]
