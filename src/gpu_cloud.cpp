@@ -64,6 +64,8 @@
 // To see images
 #include <opencv2/core/core.hpp>
 #include <opencv2/core/mat.hpp>
+#include <opencv2/core/cuda.hpp>
+#include <opencv2/cudaarithm.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
@@ -179,8 +181,26 @@ bool show_depth_image(libfreenect2::Frame& frame, const std::string& window_name
 }
 
 #ifdef USE_CUDA_REG
-bool show_gpu_float_image()
+bool show_gpu_float_image(libfreenect2::CudaDeviceFrame& gpuFrame, const std::string& window_name)
 {
+	size_t width = gpuFrame.width;
+	size_t height = gpuFrame.height;
+	cv::cuda::GpuMat img(height, width, CV_32FC1, (uchar*) gpuFrame.data);
+	cv::cuda::divide(1000.f, img, img);
+	cv::Mat gray(height, width, CV_32FC1);
+	img.download(gray);
+	cv::imshow(window_name, gray);
+	return true;
+}
+
+bool show_gpu_color_image(libfreenect2::CudaDeviceFrame& gpuFrame, const std::string& window_name)
+{
+	size_t width = gpuFrame.width;
+	size_t height = gpuFrame.height;
+	cv::cuda::GpuMat img(height, width, CV_8UC3, (uchar*) gpuFrame.data);
+	cv::Mat gray(height, width, CV_8UC3);
+	img.download(gray);
+	cv::imshow(window_name, gray);
 	return true;
 }
 #endif
@@ -350,10 +370,10 @@ int main(int argc, char *argv[])
     // Can be replaced.
 #ifdef USE_CUDA_REG
     libfreenect2::CudaRegistration* registration = new libfreenect2::CudaRegistration(dev->getIrCameraParams(), dev->getColorCameraParams());
-    libfreenect2::Frame undistorted(512, 424, 4), registered(512, 424, 4);
+    libfreenect2::CudaDeviceFrame undistorted(512, 424, 4), registered(512, 424, 4);
 #else
     libfreenect2::Registration* registration = new libfreenect2::Registration(dev->getIrCameraParams(), dev->getColorCameraParams());
-    libfreenect2::CudaDeviceFrame undistorted(512, 424, 4), registered(512, 424, 4);
+	libfreenect2::Frame undistorted(512, 424, 4), registered(512, 424, 4);
 #endif
 //- [registration setup]
 
@@ -406,11 +426,19 @@ int main(int argc, char *argv[])
 
 		cout << "Undistorted: " << std::endl;
 		print_frame(undistorted, false);
+#ifdef USE_CUDA_REG
+		show_gpu_float_image(undistorted, "Undistorted");
+#else
 		show_depth_image(undistorted, "Undistorted");
+#endif
 
 		cout << "Registered: " << std::endl;
 		print_frame(registered, false);
+#ifdef USE_CUDA_REG
+		show_gpu_color_image(registered, "Registered");
+#else
 		show_color_image(registered, "Registered");
+#endif
 
 		//show_registered_cloud(&registered);
 
