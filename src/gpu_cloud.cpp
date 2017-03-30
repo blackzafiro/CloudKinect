@@ -121,21 +121,7 @@ bool show_color_image(libfreenect2::Frame& frame, const std::string& window_name
 	size_t width = frame.width;
 	size_t height = frame.height;
 
-	cv::Mat bgr(height, width, CV_8UC3);
-	unsigned char* bgr_buffer = bgr.ptr<unsigned char>(0);
-	int index, k_index;
-	for(int i = 0; i < height; i++)
-	{
-		for(int j = 0; j < width; j++)
-		{
-			index = (i * width + j) * 3;
-			k_index = (i * width + j) * 4;
-
-			bgr_buffer[index + 0] = frame_BGRX_data[k_index + 0]; // R
-			bgr_buffer[index + 1] = frame_BGRX_data[k_index + 1]; // G
-			bgr_buffer[index + 2] = frame_BGRX_data[k_index + 2]; // B
-		}
-	}
+	cv::Mat bgr(height, width, CV_8UC4, frame.data);
 
 	if (width > 1000)
 	{
@@ -153,29 +139,21 @@ bool show_depth_image(libfreenect2::Frame& frame, const std::string& window_name
 	size_t width = frame.width;
 	size_t height = frame.height;
 
-	cv::Mat gray(height, width, CV_32FC1);
-	float* gray_buffer = gray.ptr<float>(0);
-	int index, k_index;
-
-	float max = -60000;
-	for(int i = 0; i < height; i++)
-	{
-		for(int j = 0; j < width; j++)
-		{
-			index = (i * width + j);
-			if (frame_float_data[index] > max) max = frame_float_data[index];
-			gray_buffer[index] = frame_float_data[index]/ 1000.f;
-		}
-	}
+	cv::Mat aux(height, width, CV_32FC1, frame.data);
+	cv::Mat gray;
+	aux.copyTo(gray);
+	gray = gray / 1000.f;
 
 	double scale = 1.0;
 	cv::resize(gray, gray, cv::Size(), scale, scale);
-	//cv::normalize(gray, gray);
 	cv::Mat gray_(height, width, CV_8UC1);
 	gray.convertTo(gray_, CV_8UC1);
 	cv::equalizeHist(gray_, gray_);
 	cv::imshow(window_name, gray_);
-	std::cout << "Max depth:" << max << std::endl;
+
+	double min, max;
+	cv::minMaxLoc(gray, &min, &max);
+	std::cout << "Max depth: " << max << "\tMin depth: " << min << std::endl;
 	if (cv::waitKey(2) == 'q') {return false;}
 	return true;
 }
@@ -197,10 +175,10 @@ bool show_gpu_color_image(libfreenect2::CudaDeviceFrame& gpuFrame, const std::st
 {
 	size_t width = gpuFrame.width;
 	size_t height = gpuFrame.height;
-	cv::cuda::GpuMat img(height, width, CV_8UC3, (uchar*) gpuFrame.data);
-	cv::Mat gray(height, width, CV_8UC3);
-	img.download(gray);
-	cv::imshow(window_name, gray);
+	cv::cuda::GpuMat img(height, width, CV_8UC4, gpuFrame.data);
+	cv::Mat color(height, width, CV_8UC4);
+	img.download(color);
+	cv::imshow(window_name, color);
 	return true;
 }
 #endif
@@ -421,7 +399,7 @@ int main(int argc, char *argv[])
 		//show_depth_cloud(depth);
 
 	//- [registration]
-		registration->apply(rgb, depth, &undistorted, &registered);
+		registration->apply(rgb, depth, &undistorted, &registered, true);
 	//- [registration]
 
 		cout << "Undistorted: " << std::endl;
